@@ -14,7 +14,7 @@ class Formatui < Formula
 
   def caveats
     <<~EOS
-      Rules live in ~/.config/formatui/config.yaml (created on first run).
+      Rules live in ~/.config/formatui/config.yml (created on first run).
       Try it without touching anything:
         formatui run .          # dry run
         formatui                # interactive UI

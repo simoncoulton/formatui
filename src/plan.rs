@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -15,7 +15,7 @@ pub enum Status {
     Conflict(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Entry {
     pub path: PathBuf,
     pub target: Option<PathBuf>,
@@ -57,8 +57,33 @@ pub fn collect(paths: &[PathBuf], recursive: bool, exts: &[String]) -> Vec<PathB
     files
 }
 
-/// First matching rule wins.
-pub fn plan(files: &[PathBuf], rules: &[Result<Compiled, String>]) -> Vec<Entry> {
+fn key(p: &Path) -> String {
+    p.to_string_lossy().to_lowercase()
+}
+
+/// Lower-cased paths of everything beside `files`, so planning needs no filesystem access.
+pub fn existing(files: &[PathBuf]) -> HashSet<String> {
+    let dirs: BTreeSet<&Path> = files.iter().filter_map(|f| f.parent()).collect();
+    let mut found = HashSet::new();
+    for dir in dirs {
+        let real = if dir.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            dir
+        };
+        for entry in fs::read_dir(real).into_iter().flatten().flatten() {
+            found.insert(key(&dir.join(entry.file_name())));
+        }
+    }
+    found
+}
+
+/// First matching rule wins. `existing` is the result of [`existing`].
+pub fn plan(
+    files: &[PathBuf],
+    rules: &[Result<Compiled, String>],
+    existing: &HashSet<String>,
+) -> Vec<Entry> {
     let mut seen: HashSet<String> = HashSet::new();
     files
         .iter()
@@ -81,9 +106,9 @@ pub fn plan(files: &[PathBuf], rules: &[Result<Compiled, String>]) -> Vec<Entry>
             let target = path.with_file_name(&new);
             let status = if new == name {
                 Status::Unchanged
-            } else if !seen.insert(target.to_string_lossy().to_lowercase()) {
+            } else if !seen.insert(key(&target)) {
                 Status::Conflict("another file maps to the same name".into())
-            } else if target.exists() && !same_ignoring_case(path, &target) {
+            } else if existing.contains(&key(&target)) && !same_ignoring_case(path, &target) {
                 Status::Conflict("target already exists".into())
             } else {
                 Status::Ready
@@ -99,7 +124,7 @@ pub fn plan(files: &[PathBuf], rules: &[Result<Compiled, String>]) -> Vec<Entry>
 }
 
 fn same_ignoring_case(a: &Path, b: &Path) -> bool {
-    a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+    key(a) == key(b)
 }
 
 /// Renames every `Ready` entry. Returns completed (from, to) pairs and per-file errors.
@@ -114,4 +139,66 @@ pub fn apply(entries: &[Entry]) -> (Vec<(PathBuf, PathBuf)>, Vec<String>) {
         }
     }
     (done, errors)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn rules() -> Vec<Result<Compiled, String>> {
+        Config::default()
+            .rules
+            .iter()
+            .map(Compiled::compile)
+            .collect()
+    }
+
+    fn names(entries: &[Entry]) -> Vec<(Status, Option<String>)> {
+        entries
+            .iter()
+            .map(|e| {
+                (
+                    e.status.clone(),
+                    e.target
+                        .as_ref()
+                        .map(|t| t.file_name().unwrap().to_string_lossy().into()),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn conflicts_with_existing_files_and_each_other() {
+        let files: Vec<PathBuf> = [
+            "d/Show.S01E01.mkv",
+            "d/Show.S01E01.720p.mkv",
+            "d/Other.S02E03.mkv",
+            "d/notes.txt",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .collect();
+        let existing: HashSet<String> = ["d/other - s02e03.mkv".to_string()].into();
+        let got = names(&plan(&files, &rules(), &existing));
+        assert_eq!(got[0], (Status::Ready, Some("Show - S01E01.mkv".into())));
+        assert!(matches!(got[1].0, Status::Conflict(_)));
+        assert!(matches!(got[2].0, Status::Conflict(_)));
+        assert_eq!(got[3], (Status::NoMatch, None));
+    }
+
+    #[test]
+    fn a_case_only_rename_is_not_a_conflict() {
+        let files = vec![PathBuf::from("d/another series - S01E01.mkv")];
+        let existing: HashSet<String> = ["d/another series - s01e01.mkv".to_string()].into();
+        let rules: Vec<_> = vec![Compiled::compile(&crate::config::Rule {
+            name: "up".into(),
+            pattern: "(?P<t>.+)".into(),
+            template: "{t|title}".into(),
+            steps: vec![],
+            extensions: vec![],
+        })];
+        let got = plan(&files, &rules, &existing);
+        assert_eq!(got[0].status, Status::Ready);
+    }
 }
