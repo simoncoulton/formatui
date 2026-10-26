@@ -2,6 +2,16 @@
 name = "formatui"
 version = "0.1.0"
 edition = "2024"
+description = "Rename files with ordered regex rules, from a terminal UI or the command line"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/simoncoulton/formatui"
+homepage = "https://github.com/simoncoulton/formatui"
+keywords = ["rename", "batch-rename", "tui", "terminal", "media"]
+categories = ["command-line-utilities", "filesystem"]
+# let-chains (1.88); the dependency tree needs 1.89
+rust-version = "1.89"
+exclude = [".github/", "packaging/", "example/"]
 
 [dependencies]
 anyhow = "1.0.104"
@@ -13,3 +23,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 serde_yaml_ng = "0.10.0"
 walkdir = "2.5.0"
+
+[profile.release]
+lto = "thin"
+strip = true

@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use regex::Regex;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui::{DefaultTerminal, Frame};
+use regex::Regex;
 
 use crate::config::{self, Config, Rule};
 use crate::engine::Compiled;
@@ -85,10 +85,10 @@ pub fn run(cfg: Config, config_path: PathBuf, dir: PathBuf) -> Result<()> {
 fn event_loop(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     while !app.quit {
         terminal.draw(|f| draw(f, app))?;
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                app.on_key(key);
-            }
+        if let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
+        {
+            app.on_key(key);
         }
     }
     Ok(())
@@ -96,7 +96,7 @@ fn event_loop(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
 
 impl App {
     fn rescan(&mut self) {
-        self.files = plan::collect(&[self.dir.clone()], false, &[]);
+        self.files = plan::collect(std::slice::from_ref(&self.dir), false, &[]);
         self.recompute();
     }
 
@@ -104,7 +104,11 @@ impl App {
         self.compiled = self.rules.iter().map(Compiled::compile).collect();
         self.entries = plan::plan(&self.files, &self.compiled);
         let visible = self.visible().len();
-        let sel = self.file_state.selected().unwrap_or(0).min(visible.saturating_sub(1));
+        let sel = self
+            .file_state
+            .selected()
+            .unwrap_or(0)
+            .min(visible.saturating_sub(1));
         self.file_state.select((visible > 0).then_some(sel));
     }
 
@@ -124,8 +128,12 @@ impl App {
     }
 
     fn toggle_current(&mut self) {
-        let Some(i) = self.file_state.selected() else { return };
-        let Some(e) = self.visible().get(i).map(|e| (*e).clone()) else { return };
+        let Some(i) = self.file_state.selected() else {
+            return;
+        };
+        let Some(e) = self.visible().get(i).map(|e| (*e).clone()) else {
+            return;
+        };
         if e.status != Status::Ready {
             self.msg = "only files with a pending rename can be selected".into();
         } else if !self.excluded.remove(&e.path) {
@@ -157,16 +165,14 @@ impl App {
                 self.rules_key(key.code);
             }
             Mode::Edit => self.edit_key(key.code),
-            Mode::Confirm => {
-                match key.code {
-                    KeyCode::Char('y') | KeyCode::Char('Y') => {
-                        self.mode = Mode::Normal;
-                        self.apply();
-                    }
-                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => self.mode = Mode::Normal,
-                    _ => {}
+            Mode::Confirm => match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    self.mode = Mode::Normal;
+                    self.apply();
                 }
-            }
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => self.mode = Mode::Normal,
+                _ => {}
+            },
         }
     }
 
@@ -179,7 +185,8 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => {
                 if self.dirty && !self.quit_armed {
                     self.quit_armed = true;
-                    self.msg = "unsaved rule changes: press s to save, or q again to discard".into();
+                    self.msg =
+                        "unsaved rule changes: press s to save, or q again to discard".into();
                 } else {
                     self.quit = true;
                 }
@@ -193,7 +200,12 @@ impl App {
             KeyCode::Char(' ') => self.toggle_current(),
             KeyCode::Char('A') => self.excluded.clear(),
             KeyCode::Char('N') => {
-                self.excluded = self.entries.iter().filter(|e| e.status == Status::Ready).map(|e| e.path.clone()).collect();
+                self.excluded = self
+                    .entries
+                    .iter()
+                    .filter(|e| e.status == Status::Ready)
+                    .map(|e| e.path.clone())
+                    .collect();
             }
             KeyCode::Char('r') => self.mode = Mode::Rules,
             KeyCode::Char('?') | KeyCode::F(1) => self.help = true,
@@ -219,7 +231,11 @@ impl App {
                 self.msg = match history::undo_last() {
                     Ok(None) => "nothing to undo".into(),
                     Ok(Some((n, skipped))) => {
-                        let extra = if skipped.is_empty() { String::new() } else { format!(", skipped {}: {}", skipped.len(), skipped[0]) };
+                        let extra = if skipped.is_empty() {
+                            String::new()
+                        } else {
+                            format!(", skipped {}: {}", skipped.len(), skipped[0])
+                        };
                         format!("restored {n} file(s){extra}")
                     }
                     Err(e) => format!("undo failed: {e}"),
@@ -260,7 +276,8 @@ impl App {
             KeyCode::Char('d') => {
                 if let Some(i) = self.rule_state.selected() {
                     self.rules.remove(i);
-                    self.rule_state.select(i.checked_sub(1).or((!self.rules.is_empty()).then_some(0)));
+                    self.rule_state
+                        .select(i.checked_sub(1).or((!self.rules.is_empty()).then_some(0)));
                     self.dirty = true;
                     self.recompute();
                 }
@@ -281,7 +298,10 @@ impl App {
     }
 
     fn save(&mut self) {
-        let cfg = Config { show_unmatched: self.show_all, rules: self.rules.clone() };
+        let cfg = Config {
+            show_unmatched: self.show_all,
+            rules: self.rules.clone(),
+        };
         self.msg = match config::save(&self.config_path, &cfg) {
             Ok(()) => {
                 self.dirty = false;
@@ -292,14 +312,19 @@ impl App {
     }
 
     fn start_edit(&mut self) {
-        let (steps, exts) = self.rule().map(|r| (r.steps.join(", "), r.extensions.join(", "))).unwrap_or_default();
+        let (steps, exts) = self
+            .rule()
+            .map(|r| (r.steps.join(", "), r.extensions.join(", ")))
+            .unwrap_or_default();
         self.steps_buf = steps;
         self.exts_buf = exts;
         self.mode = Mode::Edit;
     }
 
     fn move_rule(&mut self, delta: isize) {
-        let Some(i) = self.rule_state.selected() else { return };
+        let Some(i) = self.rule_state.selected() else {
+            return;
+        };
         let j = i as isize + delta;
         if j >= 0 && (j as usize) < self.rules.len() {
             self.rules.swap(i, j as usize);
@@ -315,7 +340,9 @@ impl App {
             KeyCode::Esc | KeyCode::Enter => self.mode = Mode::Rules,
             KeyCode::F(1) => self.help = true,
             KeyCode::Tab | KeyCode::Down => self.field = (field + 1) % FIELDS.len(),
-            KeyCode::BackTab | KeyCode::Up => self.field = (field + FIELDS.len() - 1) % FIELDS.len(),
+            KeyCode::BackTab | KeyCode::Up => {
+                self.field = (field + FIELDS.len() - 1) % FIELDS.len()
+            }
             KeyCode::Char(c) => self.edit_text(|s| s.push(c)),
             KeyCode::Backspace => self.edit_text(|s| {
                 s.pop();
@@ -350,7 +377,12 @@ impl App {
     }
 
     fn apply(&mut self) {
-        let chosen: Vec<Entry> = self.entries.iter().filter(|e| self.is_selected(e)).cloned().collect();
+        let chosen: Vec<Entry> = self
+            .entries
+            .iter()
+            .filter(|e| self.is_selected(e))
+            .cloned()
+            .collect();
         let (done, errors) = plan::apply(&chosen);
         let n = done.len();
         let recorded = history::record(done);
@@ -364,7 +396,10 @@ impl App {
 }
 
 fn split_list(s: &str) -> Vec<String> {
-    s.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+    s.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 fn page(state: &mut ListState, len: usize, delta: isize) {
@@ -383,21 +418,40 @@ fn step(state: &mut ListState, len: usize, delta: isize) {
 }
 
 fn file_name(p: &Path) -> String {
-    p.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string()
+    p.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("?")
+        .to_string()
 }
 
 fn entry_line(app: &App, e: &Entry, checkbox: bool) -> Line<'static> {
     let old = file_name(&e.path);
     let (arrow, new, color) = match (&e.status, &e.target) {
         (Status::Ready, Some(t)) => (" → ", file_name(t), Color::Green),
-        (Status::Conflict(why), Some(t)) => (" ✗ ", format!("{} ({why})", file_name(t)), Color::Yellow),
+        (Status::Conflict(why), Some(t)) => {
+            (" ✗ ", format!("{} ({why})", file_name(t)), Color::Yellow)
+        }
         (Status::Unchanged, _) => ("", "(unchanged)".into(), Color::DarkGray),
         _ => ("", String::new(), Color::DarkGray),
     };
-    let rule = e.rule.and_then(|i| app.rules.get(i)).map(|r| format!("  [{}]", r.name)).unwrap_or_default();
-    let old_style = if e.status == Status::NoMatch { Style::new().fg(Color::DarkGray) } else { Style::new() };
+    let rule = e
+        .rule
+        .and_then(|i| app.rules.get(i))
+        .map(|r| format!("  [{}]", r.name))
+        .unwrap_or_default();
+    let old_style = if e.status == Status::NoMatch {
+        Style::new().fg(Color::DarkGray)
+    } else {
+        Style::new()
+    };
     let boxed = match (checkbox, e.status == Status::Ready) {
-        (true, true) => if app.excluded.contains(&e.path) { "[ ] " } else { "[x] " },
+        (true, true) => {
+            if app.excluded.contains(&e.path) {
+                "[ ] "
+            } else {
+                "[x] "
+            }
+        }
         (true, false) => "    ",
         _ => "",
     };
@@ -411,17 +465,34 @@ fn entry_line(app: &App, e: &Entry, checkbox: bool) -> Line<'static> {
 }
 
 fn centered(area: Rect, w: u16, h: u16) -> Rect {
-    let [area] = Layout::horizontal([Constraint::Percentage(w)]).flex(Flex::Center).areas(area);
-    let [area] = Layout::vertical([Constraint::Percentage(h)]).flex(Flex::Center).areas(area);
+    let [area] = Layout::horizontal([Constraint::Percentage(w)])
+        .flex(Flex::Center)
+        .areas(area);
+    let [area] = Layout::vertical([Constraint::Percentage(h)])
+        .flex(Flex::Center)
+        .areas(area);
     area
 }
 
 fn draw(f: &mut Frame, app: &mut App) {
-    let [main, status] = Layout::vertical([Constraint::Min(6), Constraint::Length(1)]).areas(f.area());
+    let [main, status] =
+        Layout::vertical([Constraint::Min(6), Constraint::Length(1)]).areas(f.area());
 
-    let items: Vec<ListItem> = app.visible().iter().map(|e| ListItem::new(entry_line(app, e, true))).collect();
-    let ready = app.entries.iter().filter(|e| e.status == Status::Ready).count();
-    let title = format!(" {} — {} of {ready} selected ", app.dir.display(), app.selected_count());
+    let items: Vec<ListItem> = app
+        .visible()
+        .iter()
+        .map(|e| ListItem::new(entry_line(app, e, true)))
+        .collect();
+    let ready = app
+        .entries
+        .iter()
+        .filter(|e| e.status == Status::Ready)
+        .count();
+    let title = format!(
+        " {} — {} of {ready} selected ",
+        app.dir.display(),
+        app.selected_count()
+    );
     let list = List::new(items)
         .block(Block::bordered().title(title))
         .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
@@ -446,7 +517,14 @@ fn draw(f: &mut Frame, app: &mut App) {
             ("a", "apply"),
             ("u", "undo"),
             ("r", "rules"),
-            ("t", if app.show_all { "hide unmatched" } else { "show unmatched" }),
+            (
+                "t",
+                if app.show_all {
+                    "hide unmatched"
+                } else {
+                    "show unmatched"
+                },
+            ),
             ("?", "help"),
             ("q", "quit"),
         ],
@@ -460,7 +538,11 @@ fn draw(f: &mut Frame, app: &mut App) {
             ("?", "placeholders"),
             ("Esc", "close"),
         ],
-        Mode::Edit => &[("Tab/Shift-Tab", "field"), ("F1", "placeholders"), ("Esc/Enter", "done")],
+        Mode::Edit => &[
+            ("Tab/Shift-Tab", "field"),
+            ("F1", "placeholders"),
+            ("Esc/Enter", "done"),
+        ],
         Mode::Confirm => &[("y", "yes"), ("n/Esc", "cancel")],
     };
     let line = if app.msg.is_empty() {
@@ -483,12 +565,21 @@ fn draw(f: &mut Frame, app: &mut App) {
 
 fn draw_confirm(f: &mut Frame, app: &App, area: Rect) {
     let n = app.selected_count();
-    let skipped = app.entries.iter().filter(|e| e.status == Status::Ready).count() - n;
+    let skipped = app
+        .entries
+        .iter()
+        .filter(|e| e.status == Status::Ready)
+        .count()
+        - n;
     let key = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
     let lines = vec![
         Line::from(format!("Rename {n} file(s)?")).centered(),
         Line::styled(
-            if skipped > 0 { format!("{skipped} deselected file(s) will be left alone") } else { String::new() },
+            if skipped > 0 {
+                format!("{skipped} deselected file(s) will be left alone")
+            } else {
+                String::new()
+            },
             Style::new().fg(Color::DarkGray),
         )
         .centered(),
@@ -501,10 +592,16 @@ fn draw_confirm(f: &mut Frame, app: &App, area: Rect) {
         ])
         .centered(),
     ];
-    let [area] = Layout::horizontal([Constraint::Length(44)]).flex(Flex::Center).areas(area);
-    let [area] = Layout::vertical([Constraint::Length(8)]).flex(Flex::Center).areas(area);
+    let [area] = Layout::horizontal([Constraint::Length(44)])
+        .flex(Flex::Center)
+        .areas(area);
+    let [area] = Layout::vertical([Constraint::Length(8)])
+        .flex(Flex::Center)
+        .areas(area);
     f.render_widget(Clear, area);
-    let block = Block::bordered().title(" Apply ").border_style(Style::new().fg(Color::Yellow));
+    let block = Block::bordered()
+        .title(" Apply ")
+        .border_style(Style::new().fg(Color::Yellow));
     let inner = block.inner(area);
     f.render_widget(block, area);
     let [_, body] = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(inner);
@@ -513,12 +610,19 @@ fn draw_confirm(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_rules_modal(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Clear, area);
-    let title = if app.dirty { " Rules (modified, s to save) " } else { " Rules " };
-    let outer = Block::bordered().title(title).border_style(Style::new().fg(Color::Cyan));
+    let title = if app.dirty {
+        " Rules (modified, s to save) "
+    } else {
+        " Rules "
+    };
+    let outer = Block::bordered()
+        .title(title)
+        .border_style(Style::new().fg(Color::Cyan));
     let inner = outer.inner(area);
     f.render_widget(outer, area);
 
-    let [top, preview_area] = Layout::vertical([Constraint::Length(9), Constraint::Min(3)]).areas(inner);
+    let [top, preview_area] =
+        Layout::vertical([Constraint::Length(9), Constraint::Min(3)]).areas(inner);
     let [list_area, editor_area] =
         Layout::horizontal([Constraint::Percentage(28), Constraint::Percentage(72)]).areas(top);
 
@@ -528,7 +632,11 @@ fn draw_rules_modal(f: &mut Frame, app: &mut App, area: Rect) {
         .zip(&app.compiled)
         .enumerate()
         .map(|(i, (r, c))| {
-            let style = if c.is_err() { Style::new().fg(Color::Red) } else { Style::new() };
+            let style = if c.is_err() {
+                Style::new().fg(Color::Red)
+            } else {
+                Style::new()
+            };
             ListItem::new(format!("{}. {}", i + 1, r.name)).style(style)
         })
         .collect();
@@ -548,10 +656,20 @@ fn draw_rules_modal(f: &mut Frame, app: &mut App, area: Rect) {
         } else {
             (rule.steps.join(", "), rule.extensions.join(", "))
         };
-        let values = [rule.name.clone(), rule.pattern.clone(), rule.template.clone(), steps, exts];
+        let values = [
+            rule.name.clone(),
+            rule.pattern.clone(),
+            rule.template.clone(),
+            steps,
+            exts,
+        ];
         for (n, label) in FIELDS.iter().enumerate() {
             let active = editing && app.field == n;
-            let style = if active { Style::new().fg(Color::Cyan) } else { Style::new() };
+            let style = if active {
+                Style::new().fg(Color::Cyan)
+            } else {
+                Style::new()
+            };
             let cursor = if active { "▏" } else { "" };
             lines.push(Line::from(vec![
                 Span::styled(format!("{label:<9}"), Style::new().fg(Color::DarkGray)),
@@ -565,7 +683,10 @@ fn draw_rules_modal(f: &mut Frame, app: &mut App, area: Rect) {
         lines.push(Line::raw("No rules. Press n to create one."));
     }
     let etitle = if editing { " Edit " } else { " Rule " };
-    f.render_widget(Paragraph::new(lines).block(Block::bordered().title(etitle)), editor_area);
+    f.render_widget(
+        Paragraph::new(lines).block(Block::bordered().title(etitle)),
+        editor_area,
+    );
 
     let matched: Vec<ListItem> = app
         .entries
@@ -574,12 +695,20 @@ fn draw_rules_modal(f: &mut Frame, app: &mut App, area: Rect) {
         .map(|e| ListItem::new(entry_line(app, e, false)))
         .collect();
     let ptitle = format!(" Preview: {} file(s) matched by this rule ", matched.len());
-    f.render_widget(List::new(matched).block(Block::bordered().title(ptitle)), preview_area);
+    f.render_widget(
+        List::new(matched).block(Block::bordered().title(ptitle)),
+        preview_area,
+    );
 }
 
 fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Clear, area);
-    let head = |t: &str| Line::styled(t.to_string(), Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+    let head = |t: &str| {
+        Line::styled(
+            t.to_string(),
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )
+    };
     let code = |t: &str| Span::styled(t.to_string(), Style::new().fg(Color::Green));
 
     let groups: Vec<String> = app
@@ -587,7 +716,12 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         .selected()
         .and_then(|i| app.rules.get(i))
         .and_then(|r| Regex::new(&r.pattern).ok())
-        .map(|re| re.capture_names().flatten().map(|g| format!("{{{g}}}")).collect())
+        .map(|re| {
+            re.capture_names()
+                .flatten()
+                .map(|g| format!("{{{g}}}"))
+                .collect()
+        })
         .unwrap_or_default();
     let groups_line = if groups.is_empty() {
         "none yet: add named groups like (?P<title>.+) to the pattern".to_string()
@@ -597,30 +731,67 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
 
     let lines = vec![
         head("Placeholders (Template field)"),
-        Line::from(vec![code("  {name}"), Span::raw("          value captured by the group (?P<name>…) in the Pattern")]),
-        Line::from(vec![code("  {name|filter}"), Span::raw("   transform the value; chain with more |")]),
-        Line::from(vec![Span::raw("  Groups in the selected rule: "), Span::styled(groups_line, Style::new().fg(Color::Yellow))]),
+        Line::from(vec![
+            code("  {name}"),
+            Span::raw("          value captured by the group (?P<name>…) in the Pattern"),
+        ]),
+        Line::from(vec![
+            code("  {name|filter}"),
+            Span::raw("   transform the value; chain with more |"),
+        ]),
+        Line::from(vec![
+            Span::raw("  Groups in the selected rule: "),
+            Span::styled(groups_line, Style::new().fg(Color::Yellow)),
+        ]),
         Line::raw(""),
         head("Filters"),
-        Line::from(vec![code("  upper  lower  title  trim"), Span::raw("   change case / strip spaces")]),
-        Line::from(vec![code("  pad2"), Span::raw("                       left-pad with zeros to 2 digits (2 → 02)")]),
+        Line::from(vec![
+            code("  upper  lower  title  trim"),
+            Span::raw("   change case / strip spaces"),
+        ]),
+        Line::from(vec![
+            code("  pad2"),
+            Span::raw("                       left-pad with zeros to 2 digits (2 → 02)"),
+        ]),
         Line::raw(""),
         head("Steps (cleanup before the pattern runs, in order)"),
-        Line::from(vec![code("  strip_brackets"), Span::raw("         remove [anything in square brackets]")]),
-        Line::from(vec![code("  dots_to_spaces"), Span::raw("         Example.Show → Example Show")]),
+        Line::from(vec![
+            code("  strip_brackets"),
+            Span::raw("         remove [anything in square brackets]"),
+        ]),
+        Line::from(vec![
+            code("  dots_to_spaces"),
+            Span::raw("         Example.Show → Example Show"),
+        ]),
         Line::from(vec![code("  underscores_to_spaces")]),
-        Line::from(vec![code("  collapse_spaces"), Span::raw("        squeeze repeated whitespace")]),
+        Line::from(vec![
+            code("  collapse_spaces"),
+            Span::raw("        squeeze repeated whitespace"),
+        ]),
         Line::raw(""),
         head("Formats"),
         Line::raw("  Comma separated extensions the rule applies to (mkv, mp4, avi). Empty = any."),
         Line::raw(""),
         head("Example"),
-        Line::from(vec![Span::raw("  Pattern   "), code("^(?P<title>.+?) S(?P<season>\\d+)E(?P<episode>\\d+)")]),
-        Line::from(vec![Span::raw("  Template  "), code("{title} - S{season|pad2}E{episode|pad2}")]),
+        Line::from(vec![
+            Span::raw("  Pattern   "),
+            code("^(?P<title>.+?) S(?P<season>\\d+)E(?P<episode>\\d+)"),
+        ]),
+        Line::from(vec![
+            Span::raw("  Template  "),
+            code("{title} - S{season|pad2}E{episode|pad2}"),
+        ]),
         Line::raw("  Example Show S2E6  →  Example Show - S02E06"),
         Line::raw(""),
         Line::styled("press any key to close", Style::new().fg(Color::DarkGray)),
     ];
-    let block = Block::bordered().title(" Help ").border_style(Style::new().fg(Color::Yellow));
-    f.render_widget(Paragraph::new(lines).block(block).wrap(Wrap { trim: false }), area);
+    let block = Block::bordered()
+        .title(" Help ")
+        .border_style(Style::new().fg(Color::Yellow));
+    f.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
+        area,
+    );
 }

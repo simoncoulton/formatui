@@ -14,11 +14,26 @@ The `example/` folder holds empty sample files to try it on: `formatui example`.
 
 ## Install
 
+Homebrew (macOS and Linux):
+
 ```sh
-cargo build --release
-# binary: target/release/formatui
-cargo install --path .   # optional, puts it on your PATH
+brew install simoncoulton/formatui/formatui
 ```
+
+Arch Linux (AUR):
+
+```sh
+yay -S formatui    # or paru, or any other AUR helper
+```
+
+From crates.io, or from a checkout:
+
+```sh
+cargo install formatui
+cargo install --path .
+```
+
+Prebuilt Linux and macOS binaries are attached to each [GitHub release](https://github.com/simoncoulton/formatui/releases).
 
 ## Quick start
 
@@ -149,12 +164,3 @@ Notes:
 ```sh
 cargo test
 ```
-
-The demo GIF is recorded from `example/` with
-[vhs](https://github.com/charmbracelet/vhs) (also needs `ttyd` and `ffmpeg`):
-
-```sh
-docs/make-demo.sh   # rebuilds docs/demo.gif using a throwaway HOME, so your config and history are untouched
-```
-
-Edit `docs/demo.tape` to change the walkthrough.

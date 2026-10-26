@@ -30,7 +30,12 @@ pub fn collect(paths: &[PathBuf], recursive: bool, exts: &[String]) -> Vec<PathB
     for p in paths {
         if p.is_dir() {
             let depth = if recursive { usize::MAX } else { 1 };
-            for e in WalkDir::new(p).min_depth(1).max_depth(depth).into_iter().flatten() {
+            for e in WalkDir::new(p)
+                .min_depth(1)
+                .max_depth(depth)
+                .into_iter()
+                .flatten()
+            {
                 if e.file_type().is_file() {
                     files.push(e.into_path());
                 }
@@ -41,7 +46,11 @@ pub fn collect(paths: &[PathBuf], recursive: bool, exts: &[String]) -> Vec<PathB
     }
     files.retain(|f| {
         let name = f.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let ext = f.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        let ext = f
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
         !name.starts_with('.') && (exts.is_empty() || exts.contains(&ext))
     });
     files.sort();
@@ -56,10 +65,18 @@ pub fn plan(files: &[PathBuf], rules: &[Result<Compiled, String>]) -> Vec<Entry>
         .map(|path| {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let hit = rules.iter().enumerate().find_map(|(i, r)| {
-                r.as_ref().ok().and_then(|c| c.apply(name)).map(|new| (i, new))
+                r.as_ref()
+                    .ok()
+                    .and_then(|c| c.apply(name))
+                    .map(|new| (i, new))
             });
             let Some((rule, new)) = hit else {
-                return Entry { path: path.clone(), target: None, rule: None, status: Status::NoMatch };
+                return Entry {
+                    path: path.clone(),
+                    target: None,
+                    rule: None,
+                    status: Status::NoMatch,
+                };
             };
             let target = path.with_file_name(&new);
             let status = if new == name {
@@ -71,7 +88,12 @@ pub fn plan(files: &[PathBuf], rules: &[Result<Compiled, String>]) -> Vec<Entry>
             } else {
                 Status::Ready
             };
-            Entry { path: path.clone(), target: Some(target), rule: Some(rule), status }
+            Entry {
+                path: path.clone(),
+                target: Some(target),
+                rule: Some(rule),
+                status,
+            }
         })
         .collect()
 }

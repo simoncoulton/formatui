@@ -43,7 +43,9 @@ pub fn record(renames: Vec<(PathBuf, PathBuf)>) -> Result<()> {
         return Ok(());
     }
     let mut j = load();
-    let time = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
     j.batches.push(Batch { time, renames });
     store(&j)
 }

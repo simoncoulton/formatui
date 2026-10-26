@@ -36,7 +36,8 @@ pub struct Compiled {
 
 impl Compiled {
     pub fn compile(rule: &Rule) -> Result<Self, String> {
-        let re = Regex::new(&rule.pattern).map_err(|e| format!("pattern: {}", first_line(&e.to_string())))?;
+        let re = Regex::new(&rule.pattern)
+            .map_err(|e| format!("pattern: {}", first_line(&e.to_string())))?;
         let steps = rule
             .steps
             .iter()
@@ -45,14 +46,24 @@ impl Compiled {
         let parts = parse_template(&rule.template)?;
         let groups: Vec<&str> = re.capture_names().flatten().collect();
         for part in &parts {
-            if let Part::Field { name, .. } = part {
-                if !groups.contains(&name.as_str()) {
-                    return Err(format!("template: no group named '{name}' in pattern"));
-                }
+            if let Part::Field { name, .. } = part
+                && !groups.contains(&name.as_str())
+            {
+                return Err(format!("template: no group named '{name}' in pattern"));
             }
         }
-        let exts = rule.extensions.iter().map(|e| e.trim().trim_start_matches('.').to_lowercase()).collect();
-        Ok(Self { name: rule.name.clone(), re, steps, exts, parts })
+        let exts = rule
+            .extensions
+            .iter()
+            .map(|e| e.trim().trim_start_matches('.').to_lowercase())
+            .collect();
+        Ok(Self {
+            name: rule.name.clone(),
+            re,
+            steps,
+            exts,
+            parts,
+        })
     }
 
     /// Returns the new file name (extension preserved) if the rule matches.
@@ -83,7 +94,11 @@ impl Compiled {
         if out.is_empty() {
             return None;
         }
-        Some(if ext.is_empty() { out } else { format!("{out}.{ext}") })
+        Some(if ext.is_empty() {
+            out
+        } else {
+            format!("{out}.{ext}")
+        })
     }
 }
 
@@ -194,7 +209,9 @@ mod tests {
     fn tv() -> Compiled {
         Compiled::compile(&Rule {
             name: "tv".into(),
-            pattern: r"(?i)^(?P<title>.+?)(?: (?:19|20)\d{2})?(?: -)? S(?P<season>\d+)E(?P<episode>\d+)".into(),
+            pattern:
+                r"(?i)^(?P<title>.+?)(?: (?:19|20)\d{2})?(?: -)? S(?P<season>\d+)E(?P<episode>\d+)"
+                    .into(),
             template: "{title} - S{season|pad2}E{episode|pad2}".into(),
             steps: vec!["strip_brackets".into(), "dots_to_spaces".into()],
             extensions: vec!["mkv".into()],
@@ -210,14 +227,23 @@ mod tests {
 
     #[test]
     fn already_formatted_is_stable() {
-        assert_eq!(tv().apply("Example Show - S02E06.mkv").as_deref(), Some("Example Show - S02E06.mkv"));
+        assert_eq!(
+            tv().apply("Example Show - S02E06.mkv").as_deref(),
+            Some("Example Show - S02E06.mkv")
+        );
     }
 
     #[test]
     fn no_match_and_bad_group() {
         assert!(tv().apply("holiday.jpg").is_none());
         assert!(tv().apply("Example.Show.S02E06.avi").is_none());
-        let bad = Rule { name: "x".into(), pattern: "(?P<a>x)".into(), template: "{b}".into(), steps: vec![], extensions: vec![] };
+        let bad = Rule {
+            name: "x".into(),
+            pattern: "(?P<a>x)".into(),
+            template: "{b}".into(),
+            steps: vec![],
+            extensions: vec![],
+        };
         assert!(Compiled::compile(&bad).is_err());
     }
 }
