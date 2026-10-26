@@ -13,8 +13,10 @@ use engine::Compiled;
 use plan::Status;
 
 #[derive(Parser)]
-#[command(version, about = "Rename files with ordered regex + template rules")]
+#[command(version, about = "Rename files with ordered regex + template rules", args_conflicts_with_subcommands = true)]
 struct Cli {
+    /// Directory to open in the UI (default: current directory)
+    dir: Option<PathBuf>,
     /// Config file (default: ~/.config/formatui/config.toml)
     #[arg(long, global = true)]
     config: Option<PathBuf>,
@@ -60,7 +62,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let config_path = cli.config.unwrap_or_else(config::default_path);
     let mut cfg = config::load(&config_path)?;
-    let command = cli.command.unwrap_or(Command::Tui { dir: ".".into() });
+    let command = cli.command.unwrap_or_else(|| Command::Tui { dir: cli.dir.unwrap_or_else(|| ".".into()) });
     if !cli.rules.is_empty() {
         if matches!(command, Command::Tui { .. }) {
             bail!("--rules isn't supported in the TUI (saving would drop the other rules)");

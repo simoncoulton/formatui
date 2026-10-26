@@ -428,7 +428,7 @@ fn draw(f: &mut Frame, app: &mut App) {
     f.render_stateful_widget(list, main, &mut app.file_state);
 
     if matches!(app.mode, Mode::Rules | Mode::Edit) {
-        draw_rules_modal(f, app, centered(main, 92, 92));
+        draw_rules_modal(f, app, main);
     }
     if app.mode == Mode::Confirm {
         draw_confirm(f, app, main);
