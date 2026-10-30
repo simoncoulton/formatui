@@ -12,28 +12,28 @@ Sample.Movie.1999.1080p.BluRay.avi                                →  Sample Mo
 
 The `example/` folder holds empty sample files to try it on: `formatui example`.
 
-## Install
+## Installation
 
-Homebrew (macOS and Linux):
+### macOS (Homebrew)
+
+Homebrew on macOS (Apple Silicon and Intel) is the supported way to install, with prebuilt binaries:
 
 ```sh
-brew install simoncoulton/formatui/formatui
+brew tap simoncoulton/formatui https://github.com/simoncoulton/formatui
+brew install formatui
 ```
 
-Arch Linux (AUR):
+### Arch Linux and other distributions
+
+There is no package for Arch or its derivatives yet. Build from source with a recent
+[Rust toolchain](https://rustup.rs) (1.89 or newer):
 
 ```sh
-yay -S formatui    # or paru, or any other AUR helper
-```
-
-From crates.io, or from a checkout:
-
-```sh
-cargo install formatui
+git clone https://github.com/simoncoulton/formatui
+cd formatui
 cargo install --path .
 ```
 
-Prebuilt Linux and macOS binaries are attached to each [GitHub release](https://github.com/simoncoulton/formatui/releases).
 
 ## Quick start
 

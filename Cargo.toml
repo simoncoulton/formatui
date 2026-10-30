@@ -11,7 +11,7 @@ keywords = ["rename", "batch-rename", "tui", "terminal", "media"]
 categories = ["command-line-utilities", "filesystem"]
 # let-chains (1.88); the dependency tree needs 1.89
 rust-version = "1.89"
-exclude = [".github/", "packaging/", "example/"]
+exclude = [".github/", "packaging/", "example/", "Formula/", "scripts/"]
 
 [dependencies]
 anyhow = "1.0.104"
